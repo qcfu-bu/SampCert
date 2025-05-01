@@ -8,13 +8,17 @@ import SampCert.DifferentialPrivacy.Queries.Histogram.Basic
 import SampCert.DifferentialPrivacy.ZeroConcentrated.System
 import SampCert.DifferentialPrivacy.Pure.System
 import SampCert.DifferentialPrivacy.Queries.HistogramMean.Properties
+import SampCert.DifferentialPrivacy.Queries.UnboundedMax.Basic
+import SampCert.DifferentialPrivacy.Queries.ParHistogram.Basic
+import SampCert.DifferentialPrivacy.Queries.Sparse.Basic
+import SampCert.DifferentialPrivacy.Queries.AboveThresh.Basic
 import SampCert.DifferentialPrivacy.Approximate.DP
 import SampCert.Samplers.Gaussian.Properties
 import Init.Data.UInt.Lemmas
 
 open SLang PMF
 
-def combineConcentrated := @privNoisedBoundedMean_DP gaussian_zCDPSystem
+def combineConcentrated := @privNoisedBoundedMean_DP zCDPSystem
 def combinePure := @privNoisedBoundedMean_DP PureDPSystem
 
 /-
@@ -27,7 +31,7 @@ def numBins : ℕ+ := 64
 /-
 Bin the infinite type ℕ with clipping
 -/
-def bin (n : ℕ) : Fin numBins :=
+def example_bin (n : ℕ) : Fin numBins :=
   { val := min (Nat.log 2 n) (PNat.natPred numBins),
     isLt := by
       apply min_lt_iff.mpr
@@ -40,8 +44,8 @@ Return an upper bound on the bin value, clipped to 2^(1 + numBins)
 -/
 def unbin (n : Fin numBins) : ℕ+ := 2 ^ (1 + n.val)
 
-noncomputable def combineMeanHistogram : Mechanism ℕ (Option ℚ) :=
-  privMeanHistogram PureDPSystem numBins { bin } unbin 1 20 2 1 20
+def combineMeanHistogram : Mechanism ℕ (Option ℚ) :=
+  privMeanHistogram PureDPSystem laplace_pureDPSystem numBins { bin := example_bin } unbin 1 20 2 1 20
 
 end histogramMeanExample
 
@@ -69,3 +73,5 @@ def DiscreteGaussianSampleGet (num den : UInt32) (mix: UInt32) : UInt32 := Id.ru
   else
     let z : IO ℤ ← run <| DiscreteGaussianPMF ⟨ num.toNat , UInt32.toNa_of_non_zero h₁ ⟩ ⟨ den.toNat , UInt32.toNa_of_non_zero h₂ ⟩ mix.toNat
     return DirtyIOGet z
+
+-- #print axioms combineMeanHistogram 

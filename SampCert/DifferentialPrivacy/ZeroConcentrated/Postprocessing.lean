@@ -37,6 +37,7 @@ def privPostProcess_AC {f : U -> V} (nq : Mechanism T U) (Hac : ACNeighbour nq) 
   intro l₁ l₂ Hn v
   have Hac := Hac l₁ l₂ Hn
   simp [privPostProcess]
+  simp [DFunLike.coe, SPMF.instFunLike]
   intro Hppz i fi
   apply Hac
   apply Hppz
@@ -365,10 +366,6 @@ theorem privPostPocess_DP_pre_reduct {U : Type} [m2 : MeasurableSpace U] [count 
   rw [<- mul_assoc] at HJ
 
   -- Move constants to the left-hand side of HJ
-  -- Super haunted bug: When I apply this as normal to HJ (with placeholders)
-  -- Lean it lights up all of my "have" and "let" statements because it \"doesn't
-  -- know how to synthesize\" a placeholder. The placeholder it points me to is in
-  -- Pure/Postprocessing, where the same lemma is also applied with placeholders.
   have W :=
     @ENNReal.div_le_iff_le_mul
       1
@@ -575,8 +572,6 @@ theorem privPostProcess_zCDPBound {nq : Mechanism T U} {ε : ℝ}
     apply inv_nonneg_of_nonneg
     linarith
   apply elog_mono_le.mp
-  simp [PMF.bind, PMF.pure]
-  simp [PMF.instFunLike]
   apply privPostPocess_DP_pre
   · exact fun l => PMF.hasSum_coe_one (nq l)
   · exact h1

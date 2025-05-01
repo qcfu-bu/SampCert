@@ -21,6 +21,7 @@ noncomputable section
 namespace SLang
 
 variable [dps : DPSystem ℕ]
+variable [dpn : DPNoise dps]
 
 lemma budget_split (ε₁ ε₂ : ℕ+) :
   (ε₁ : NNReal) / (ε₂ : NNReal) = (ε₁ : NNReal) / ((2 * ε₂) : ℕ+) + (ε₁ : NNReal) / ((2 * ε₂) : ℕ+) := by
@@ -30,14 +31,20 @@ lemma budget_split (ε₁ ε₂ : ℕ+) :
 /--
 DP bound for noised mean.
 -/
-theorem privNoisedBoundedMean_DP (U : ℕ+) (ε₁ ε₂ : ℕ+) :
-  dps.prop (privNoisedBoundedMean U ε₁ ε₂) ((ε₁ : NNReal) / ε₂) := by
+theorem privNoisedBoundedMean_DP (U : ℕ+) (ε₁ ε₂ : ℕ+) (ε : NNReal)
+  (HP_half : dpn.noise_priv ε₁ (2 * ε₂) (ε / 2)) :
+  dps.prop (privNoisedBoundedMean U ε₁ ε₂) ε := by
   unfold privNoisedBoundedMean
   rw [bind_bind_indep]
   apply dps.postprocess_prop
-  rw [budget_split]
-  apply dps.compose_prop
+  apply dps.compose_prop ?SC1
   · apply privNoisedBoundedSum_DP
+    apply HP_half
   · apply privNoisedCount_DP
+    apply HP_half
+
+  case SC1 =>
+    ring_nf
+    simp [div_mul]
 
 end SLang

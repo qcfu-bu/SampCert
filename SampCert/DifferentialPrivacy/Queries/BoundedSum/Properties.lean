@@ -22,6 +22,7 @@ noncomputable section
 namespace SLang
 
 variable [dps : DPSystem ℕ]
+variable [dpn : DPNoise dps]
 
 /--
 Sensitivity of the bounded sum is equal to the bound.
@@ -56,37 +57,14 @@ theorem exactBoundedSum_sensitivity (U : ℕ+) : sensitivity (exactBoundedSum U)
     · rename_i h
       rw [h]
       simp
-  · rename_i l n l' m h1 h2
-    subst h1 h2
-    simp
-    cases A n
-    · rename_i h
-      cases A m
-      · rename_i h'
-        rw [h, h']
-        simp at *
-        apply Int.natAbs_coe_sub_coe_le_of_le h h'
-      · rename_i h'
-        rw [h, h']
-        simp at *
-        apply Int.natAbs_coe_sub_coe_le_of_le h le_rfl
-    · rename_i h
-      cases A m
-      · rename_i h'
-        rw [h, h']
-        simp at *
-        apply Int.natAbs_coe_sub_coe_le_of_le le_rfl h'
-      · rename_i h'
-        rw [h, h']
-        simp at *
 
 /--
 The noised bounded sum satisfies the DP property of the DP system.
 -/
 @[simp]
-theorem privNoisedBoundedSum_DP (U : ℕ+) (ε₁ ε₂ : ℕ+) :
-  dps.prop (privNoisedBoundedSum U ε₁ ε₂) ((ε₁ : NNReal) / ε₂) := by
-  apply dps.noise_prop
+theorem privNoisedBoundedSum_DP (U : ℕ+) (ε₁ ε₂ : ℕ+) (ε : NNReal) (HP : dpn.noise_priv ε₁ ε₂ ε) :
+    dps.prop (privNoisedBoundedSum U ε₁ ε₂) ε := by
+  apply dpn.noise_prop HP
   apply exactBoundedSum_sensitivity
 
 end SLang

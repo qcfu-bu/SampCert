@@ -21,6 +21,7 @@ namespace SLang
 
 variable {T : Type}
 variable [dps : DPSystem T]
+variable [dpn : DPNoise dps]
 
 /--
 The counting query is 1-sensitive
@@ -36,17 +37,15 @@ theorem exactCount_1_sensitive :
   · rename_i a b n h1 h2
     subst h1 h2
     simp
-  · rename_i a n b m h1 h2
-    subst h1 h2
-    simp
 
 /--
 The noised counting query satisfies DP property
 -/
 @[simp]
-theorem privNoisedCount_DP (ε₁ ε₂ : ℕ+) :
-  dps.prop (privNoisedCount ε₁ ε₂) ((ε₁ : NNReal) / ε₂) := by
-  apply dps.noise_prop
+theorem privNoisedCount_DP (ε₁ ε₂ : ℕ+) (ε : NNReal) (HP : dpn.noise_priv ε₁ ε₂ ε) :
+  dps.prop (privNoisedCount ε₁ ε₂) ε := by
+  unfold privNoisedCount
+  apply dpn.noise_prop HP
   apply exactCount_1_sensitive
 
 end SLang

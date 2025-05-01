@@ -44,7 +44,7 @@ satisfying this bound are ``ε``-DP).
 -/
 def zCDPBound (q : List T → PMF U) (ε : ℝ) : Prop :=
   ∀ α : ℝ, 1 < α → ∀ l₁ l₂ : List T, Neighbour l₁ l₂ →
-  RenyiDivergence (q l₁) (q l₂) α ≤ ENNReal.ofReal ((1/2) * ε ^ 2 * α)
+  RenyiDivergence (q l₁) (q l₂) α ≤ ENNReal.ofReal (ε * α)
 
 /--
 All neighbouring queries are absolutely continuous
@@ -63,24 +63,22 @@ lemma zCDP_mono {m : List T -> PMF U} {ε₁ ε₂ : NNReal} (H : ε₁ ≤ ε�
   · assumption
   · rw [zCDPBound] at *
     intro α Hα l₁ l₂ N
-    apply (@le_trans _ _ _ (ENNReal.ofReal (1 / 2 * ↑ε₁ ^ 2 * α)) _ (Hε α Hα l₁ l₂ N))
+    apply (@le_trans _ _ _ (ENNReal.ofReal (ε₁ * α)) _ ?G1)
+    case G1 => apply Hε <;> trivial
     apply ENNReal.coe_mono
     refine (Real.toNNReal_le_toNNReal_iff ?a.hp).mpr ?a.a
     · apply mul_nonneg
-      · apply mul_nonneg
-        · simp
-        · simp
+      · exact NNReal.zero_le_coe
       · linarith
-    · repeat rw [mul_assoc]
-      apply (mul_le_mul_iff_of_pos_left (by simp)).mpr
-      apply (mul_le_mul_iff_of_pos_right (by linarith)).mpr
-      apply pow_le_pow_left' H (OfNat.ofNat 2)
+    · apply mul_le_mul_of_nonneg_right
+      · exact H
+      · linarith
 
 /--
 Obtain an approximate DP bound from a zCDP bound, when ε > 0 and δ < 1
 -/
 lemma ApproximateDP_of_zCDP_pos_lt_one [Countable U] (m : Mechanism T U)
-  (ε : ℝ) (Hε_pos : 0 < ε) (h : zCDPBound m ε) (Hm : ACNeighbour m) :
+  (ε : ℝ) (Hε_pos : 0 < ε) (h : zCDPBound m ((1/2) * ε^2)) (Hm : ACNeighbour m) :
   ∀ δ : NNReal, (0 < (δ : ℝ)) -> ((δ : ℝ) < 1) -> DP' m (ε^2/2 + ε * (2*Real.log (1/δ))^(1/2 : ℝ)) δ := by
   have Hε : 0 ≤ ε := by exact le_of_lt Hε_pos
   intro δ Hδ0 Hδ1
@@ -634,12 +632,11 @@ lemma ApproximateDP_of_zCDP_pos_lt_one [Countable U] (m : Mechanism T U)
 Obtain an approximate DP bound from a zCDP bound, when ε > 0
 -/
 lemma ApproximateDP_of_zCDP_pos [Countable U] (m : Mechanism T U)
-    (ε : ℝ) (Hε_pos : 0 < ε) (h : zCDPBound m ε) (Hm : ACNeighbour m) :
+    (ε : ℝ) (Hε_pos : 0 < ε) (h : zCDPBound m ((1/2) * ε^2)) (Hm : ACNeighbour m) :
     ∀ δ : NNReal, (0 < (δ : ℝ)) -> DP' m (ε^2/2 + ε * (2*Real.log (1/δ))^(1/2 : ℝ)) δ := by
   intro δ Hδ0
   cases (Classical.em (δ < 1))
-  · intro Hδ1
-    apply ApproximateDP_of_zCDP_pos_lt_one m ε Hε_pos h Hm δ Hδ0
+  · apply ApproximateDP_of_zCDP_pos_lt_one m ε Hε_pos h Hm δ Hδ0
     trivial
   · apply ApproximateDP_gt1
     apply le_of_not_lt
@@ -649,7 +646,7 @@ lemma ApproximateDP_of_zCDP_pos [Countable U] (m : Mechanism T U)
 Obtain an approximate DP bound from a zCDP bound
 -/
 theorem ApproximateDP_of_zCDP [Countable U] (m : Mechanism T U)
-    (ε : ℝ) (Hε : 0 ≤ ε) (h : zCDPBound m ε) (Hm : ACNeighbour m) :
+    (ε : ℝ) (Hε : 0 ≤ ε) (h : zCDPBound m ((1/2) * ε^2)) (Hm : ACNeighbour m) :
     ∀ δ : NNReal, (0 < (δ : ℝ)) -> DP' m (ε^2/2 + ε * (2*Real.log (1/δ))^(1/2 : ℝ)) δ := by
   cases LE.le.lt_or_eq Hε
   · rename_i Hε
@@ -668,70 +665,81 @@ theorem ApproximateDP_of_zCDP [Countable U] (m : Mechanism T U)
     case G2 => exact Hm l₁ l₂ HN
     simp
 
+namespace zCDP_of_adp_def
+
+def D (δ : NNReal) : Real := (2 * Real.log (1 / δ)) ^ ((1 : ℝ) / (2 : ℝ))
+
+def ε (ε' : NNReal) (δ : NNReal) : NNReal := Real.toNNReal (-D δ + discrim (OfNat.ofNat 2)⁻¹ (D δ) (-↑ε') ^ (2 : ℝ)⁻¹)
+
+lemma eqε (ε' δ : NNReal) (H0 : 0 < δ) (H1 : δ < 1) : ε' = ((ε ε' δ)^2) / (2 : NNReal) + ε ε' δ * D δ := by
+  suffices (((1 : ℝ) / (2 : ℝ)) * (ε ε' δ) * (ε ε' δ) + D δ * ε ε' δ + (- ε')) = 0 by
+    simp_all
+    rw [add_neg_eq_zero] at this
+    rw [<- this]
+    ring_nf
+
+  have Hle : 0 < D δ ^ 2 + 4 * (OfNat.ofNat 2)⁻¹ * ε' := by
+    apply Right.add_pos_of_pos_of_nonneg
+    · apply sq_pos_of_pos
+      unfold D
+      apply Real.rpow_pos_of_pos
+      apply mul_pos <;> simp
+      exact Real.log_neg H0 H1
+    · simp
+
+  apply (@quadratic_eq_zero_iff Real _ _ _ _ _ ?Ga ((discrim (OfNat.ofNat 1 / OfNat.ofNat 2) (D δ) (-ε'.toReal)) ^ ((1 : ℝ) / (2 : ℝ))) ?Gs ((ε ε' δ).toReal)).mpr
+  case Ga => simp
+  case Gs =>
+    rw [<- Real.rpow_add ?Gadd]
+    case Gadd =>
+      simp [discrim]
+      apply Hle
+    rw [add_halves]
+    simp
+  left
+  simp
+  unfold ε
+  apply Real.coe_toNNReal
+  simp [discrim]
+  apply nonneg_le_nonneg_of_sq_le_sq
+  · apply Real.rpow_nonneg
+    exact le_of_lt Hle
+  rw [<- Real.rpow_add Hle]
+  rw [<- one_div]
+  rw [add_halves]
+  simp
+  rw [<- sq]
+  simp
+
+end zCDP_of_adp_def
+
+/--
+Pure privacy bound required to obtain (ε, δ)-approximate DP
+-/
+def zCDP_of_adp (δ : NNReal) (ε' : NNReal) : NNReal := (1/2) * ((zCDP_of_adp_def.ε ε' δ)^2)
+
 /--
 zCDP is no weaker than approximate DP, up to a loss of parameters.
 -/
 lemma zCDP_ApproximateDP [Countable U] {m : Mechanism T U} :
-    ∃ (degrade : (δ : NNReal) -> (ε' : NNReal) -> NNReal), ∀ (δ : NNReal) (_ : 0 < δ) (ε' : NNReal),
-     (zCDP m (degrade δ ε') -> ApproximateDP m ε' δ) := by
-  let degrade (δ : NNReal) (ε' : NNReal) : NNReal :=
-    (√(2 * Real.log (1/δ) + 2 * ε') - √(2 * Real.log (1/δ))).toNNReal
-  have HDdegrade δ ε' : degrade δ ε' = (√(2 * Real.log (1/δ) + 2 * ε') - √(2 * Real.log (1/δ))).toNNReal := by rfl
-  exists degrade
-  intro δ Hδ ε' ⟨ HN , HB ⟩
-
+      ∀ (δ : NNReal) (_ : 0 < δ) (ε' : NNReal),
+     (zCDP m (zCDP_of_adp δ ε') -> ApproximateDP m ε' δ) := by
+  intro δ Hδ0 ε' H
   cases Classical.em (1 ≤ δ)
   · rename_i Hδ1
     exact ApproximateDP_gt1 m (↑ε') Hδ1
-
   rename_i Hδ1
-  rw [ApproximateDP]
-  have R := ApproximateDP_of_zCDP m (degrade δ ε') (by simp) HB HN δ Hδ
+  simp at Hδ1
+  unfold ApproximateDP
 
-  have Hdegrade : ((degrade δ ε') ^ 2) / 2 + (degrade δ ε') * (2 * Real.log (1 / δ))^(1/2 : ℝ) = ε' := by
-    rw [HDdegrade]
-    generalize HD : Real.log (1 / δ) = D
-    have HDnn : 0 ≤ D := by
-      rw [<- HD]
-      apply Real.log_nonneg
-      apply one_le_one_div Hδ
-      exact le_of_not_ge Hδ1
-    simp only [Real.coe_toNNReal']
-    rw [max_eq_left ?G1]
-    case G1 =>
-      apply sub_nonneg_of_le
-      apply Real.sqrt_le_sqrt
-      simp
-    rw [sub_sq']
-    rw [Real.sq_sqrt ?G1]
-    case G1 =>
-      apply add_nonneg
-      · simp
-        trivial
-      · simp
-    rw [Real.sq_sqrt ?G1]
-    case G1 =>
-      simp
-      trivial
-    rw [← Real.sqrt_eq_rpow]
-    rw [mul_sub_right_distrib]
-    rw [<- sq]
-    rw [Real.sq_sqrt ?G1]
-    case G1 =>
-      simp
-      trivial
-    generalize HW : √(2 * D + 2 * ↑ε') * √(2 * D) = W
-    conv =>
-      enter [1, 1, 1, 2]
-      rw [mul_assoc]
-      rw [HW]
-    rw [sub_div]
-    rw [add_div]
-    rw [add_div]
-    simp
-    linarith
-  rw [Hdegrade] at R
-  trivial
+  unfold zCDP_of_adp at H
+  rcases H with ⟨ H1, H2 ⟩
+  have X := ApproximateDP_of_zCDP m (zCDP_of_adp_def.ε ε' δ) ?G1 H2 H1 δ Hδ0
+  case G1 => exact NNReal.zero_le_coe
+  rw [zCDP_of_adp_def.eqε ε' δ Hδ0 Hδ1]
+  unfold zCDP_of_adp_def.D
+  simp_all
+
 
 
 /--
@@ -1872,7 +1880,7 @@ Convert ε-DP bound to `(1/2)ε²`-zCDP bound
 
 Note that `zCDPBound _ ε` corresponds to `(1/2)ε²`-zCDP (not `ε`-zCDP).
 -/
-lemma ofDP_bound (ε : NNReal) (q' : List T -> PMF U) (H : SLang.PureDP q' ε) : zCDPBound q' ε := by
+lemma ofDP_bound (ε : NNReal) (q' : List T -> PMF U) (H : SLang.PureDP q' ε) : zCDPBound q' ((1/2) * ε^2) := by
   rw [zCDPBound]
   intro α Hα l₁ l₂ HN
   -- Special case: (εα/2 > 1)
@@ -2298,7 +2306,7 @@ Convert ε-DP to `(1/2)ε²`-zCDP.
 
 Note that `zCDPBound _ ε` corresponds to `(1/2)ε²`-zCDP (not `ε`-zCDP).
 -/
-lemma ofDP (ε : NNReal) (q : List T -> PMF U) (H : SLang.PureDP q ε) : zCDP q ε := by
+lemma ofDP (ε : NNReal) (q : List T -> PMF U) (H : SLang.PureDP q ε) : zCDP q ((1/2) * ε^2) := by
   constructor
   · exact ACNeighbour_of_DP ε q H
   · exact ofDP_bound ε q H

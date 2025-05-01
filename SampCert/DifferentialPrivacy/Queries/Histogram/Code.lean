@@ -24,8 +24,6 @@ structure Bins (T : Type) (num_bins : ℕ) where
 ## Private Histograms
 -/
 
-noncomputable section
-
 variable (numBins : ℕ+)
 
 def predBins : ℕ := numBins.natPred
@@ -87,6 +85,7 @@ instance : DiscreteMeasurableSpace (Histogram T numBins B) where
 namespace SLang
 
 variable [dps : DPSystem T]
+variable [dpn : DPNoise dps]
 
 /--
 Compute the exact number of elements inside a histogram bin
@@ -98,7 +97,7 @@ def exactBinCount (b : Fin numBins) (l : List T) : ℤ :=
 Compute a noised count of the number of list elements inside a particular histogram bin
 -/
 def privNoisedBinCount (ε₁ ε₂ : ℕ+) (b : Fin numBins) : Mechanism T ℤ :=
-  (dps.noise (exactBinCount numBins B b) 1 ε₁ (ε₂ * numBins))
+  (dpn.noise (exactBinCount numBins B b) 1 ε₁ (ε₂ * numBins))
 
 /--
 Modify a count inside a Histogram

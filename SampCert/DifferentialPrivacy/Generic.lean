@@ -13,25 +13,112 @@ import SampCert.Foundations.Basic
 This file defines an abstract system of differentially private operators.
 -/
 
-noncomputable section
-
-open Classical Nat Int Real ENNReal
 
 namespace SLang
 
+
 abbrev Query (T U : Type) := List T → U
 
-abbrev Mechanism (T U : Type) := List T → PMF U
+abbrev Mechanism (T U : Type) := List T → SPMF U
 
 /--
 General (value-dependent) composition of mechanisms
 -/
-def privComposeAdaptive (nq1 : Mechanism T U) (nq2 : U -> Mechanism T V) (l : List T) : PMF (U × V) := do
+def privComposeAdaptive (nq1 : Mechanism T U) (nq2 : U -> Mechanism T V) (l : List T) : SPMF (U × V) := do
   let A <- nq1 l
   let B <- nq2 A l
   return (A, B)
 
-lemma compose_sum_rw_adaptive (nq1 : List T → PMF U) (nq2 : U -> List T → PMF V) (u : U) (v : V) (l : List T) :
+/--
+Product of mechanisms.
+-/
+def privCompose (nq1 : Mechanism T U) (nq2 : Mechanism T V) (l : List T) : SPMF (U × V) :=
+  privComposeAdaptive nq1 (fun _ => nq2) l
+
+/--
+Mechanism obtained by applying a post-processing function to a mechanism.
+-/
+def privPostProcess (nq : Mechanism T U) (pp : U → V) (l : List T) : SPMF V := do
+  let A ← nq l
+  return pp A
+
+/--
+Constant mechanism
+-/
+def privConst (u : U) : Mechanism T U := fun _ => SPMF_pure u
+
+/--
+Parallel composition mechanism
+-/
+def privParCompose (m1 : Mechanism T U) (m2 : Mechanism T V) (f : T -> Bool) : Mechanism T (U × V) :=
+  fun l => do
+    let v1 <- m1 <| List.filter f l
+    let v2 <- m2 <| List.filter ((! ·) ∘ f) l
+    return (v1, v2)
+
+
+section privParComp
+variable (m1 : Mechanism T U) (m2 : Mechanism T V) (f : T -> Bool)
+variable (l l₁ l₂ : List T)
+variable (v₁ v₂ : T)
+
+open Classical
+
+/-
+lemma privParComp_eval xu xv :
+    ((privParComp m1 m2 f l) : SLang (U × V)) (xu, xv) =
+    ∑'(u : U), ∑'(v : V),
+      (if ((u, v) = (xu, xv))
+        then (m1 (List.filter f l) : SLang U) xu * (m2 (List.filter ((! ·) ∘ f) l) : SLang V) xv
+        else 0) := by
+  simp [privParComp]
+  simp_rw [← ENNReal.tsum_mul_left]
+  apply tsum_congr; intro u
+  apply tsum_congr; intro v
+  simp_rw [mul_ite_zero]
+  split <;> split <;> simp_all
+-/
+
+-- FIXME: Cleanup
+lemma privParCompose_eval xu xv :
+    ((privParCompose m1 m2 f l) : SLang (U × V)) (xu, xv) =
+      (m1 (List.filter f l) : SLang U) xu * (m2 (List.filter ((! ·) ∘ f) l) : SLang V) xv := by
+  simp [privParCompose]
+  simp_rw [← ENNReal.tsum_mul_left]
+  conv=>
+    lhs
+    enter [1, a, 1, b]
+    rw [mul_ite]
+  rw [ENNReal.tsum_eq_add_tsum_ite xu, ENNReal.tsum_eq_add_tsum_ite xv]
+  simp
+  conv=>
+    rhs
+    rw [<- add_zero (_ * _)]
+  congr
+  · conv=>
+      rhs
+      rw [<- add_zero (_ * _)]
+    congr
+    simp
+    intro _ H1 H2
+    exfalso; apply H2 ▸ H1; rfl
+  · simp
+    intro _ H1 H2
+    exfalso; apply H2 ▸ H1; rfl
+
+
+end privParComp
+
+noncomputable section
+
+open Classical Nat Int Real ENNReal
+
+instance SPMF.instFunLike : FunLike (SPMF α) α ℝ≥0∞ where
+  coe p a := p.1 a
+  coe_injective' _ _ h := Subtype.eq h
+
+
+lemma compose_sum_rw_adaptive (nq1 : List T → SPMF U) (nq2 : U -> List T → SPMF V) (u : U) (v : V) (l : List T) :
   (∑' (a : U), nq1 l a * ∑' (a_1 : V), if u = a ∧ v = a_1 then nq2 a l a_1 else 0) = nq1 l u * nq2 u l v := by
   have hrw1 : ∀ (a : U), nq1 l a * (∑' (a_1 : V), if u = a ∧ v = a_1 then nq2 a l a_1 else 0) = if (u = a) then (nq1 l a * ∑' (a_1 : V), if u = a ∧ v = a_1 then nq2 a l a_1 else 0) else 0 := by
     intro a
@@ -70,24 +157,8 @@ lemma privComposeChainRule (nq1 : Mechanism T U) (nq2 : U -> Mechanism T V) (l :
   intros u v
   rw [<- compose_sum_rw_adaptive]
   simp [privComposeAdaptive]
+  simp [SPMF.instFunLike]
 
-/--
-Product of mechanisms.
--/
-def privCompose (nq1 : Mechanism T U) (nq2 : Mechanism T V) (l : List T) : PMF (U × V) :=
-  privComposeAdaptive nq1 (fun _ => nq2) l
-
-/--
-Mechanism obtained by applying a post-processing function to a mechanism.
--/
-def privPostProcess (nq : Mechanism T U) (pp : U → V) (l : List T) : PMF V := do
-  let A ← nq l
-  return pp A
-
-/--
-Constant mechanism
--/
-def privConst (u : U) : Mechanism T U := fun _ => PMF.pure u
 
 
 -- @[simp]
@@ -217,5 +288,7 @@ lemma condition_to_subset (f : U → V) (g : U → ENNReal) (x : V) :
   have B : ↑{i | decide (x = f i) = true} = ↑{a | x = f a} := by
     simp
   rw [B]
+
+end
 
 end SLang

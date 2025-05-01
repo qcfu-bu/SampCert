@@ -144,11 +144,77 @@ def probUntil (body : SLang T) (cond : T → Bool) : SLang T := do
   let v ← body
   probWhile (λ v : T => ¬ cond v) (λ _ : T => body) v
 
+
+/-
+A SPMF is a SLang program that is a also proper distribution
+-/
+abbrev SPMF.{u} (α : Type u) : Type u := { f : SLang α // HasSum f 1 }
+
+instance : Coe (SPMF α) (SLang α) where
+  coe a := a.1
+
+instance : Coe (SPMF α) (PMF α) where
+  coe a := ⟨ a.1, a.2 ⟩
+
+
+lemma probPure_norm (a : α) : ∑'s, probPure a s = 1 := by
+  simp [probPure]
+
+
+@[simp]
+def SPMF_pure (a : α) : SPMF α :=
+  ⟨ probPure a,
+    by
+      rw [Summable.hasSum_iff ENNReal.summable]
+      apply probPure_norm ⟩
+
+
+lemma probBind_norm (p : SLang α) (q : α -> SLang β) :
+    ∑'s, p s = 1 ->
+    (∀ a, ∑'s, q a s = 1) ->
+    ∑'s, probBind p q s = 1 := by
+  intro H1 H2
+  rw [<- Summable.hasSum_iff ENNReal.summable] at H1
+  have H2' : ∀ a, HasSum (q a) 1 := by
+    intro a
+    have H2 := H2 a
+    rw [<- Summable.hasSum_iff ENNReal.summable] at H2
+    trivial
+  let p' : PMF α := ⟨ p, H1 ⟩
+  let q' : α -> PMF β := (fun a => ⟨q a, H2' a ⟩)
+  have H : (probBind p (fun x => q x)) = (PMF.bind p' q') := by
+    unfold probBind
+    simp [DFunLike.coe, PMF.instFunLike, PMF.bind]
+  rw [H]
+  cases (PMF.bind p' q')
+  simp [DFunLike.coe, PMF.instFunLike]
+  rw [<- Summable.hasSum_iff ENNReal.summable]
+  trivial
+
+
+@[simp]
+def SPMF_bind (p : SPMF α) (q : α -> SPMF β) : SPMF β :=
+  ⟨ probBind p (fun x => q x),
+    by
+      rw [Summable.hasSum_iff ENNReal.summable]
+      apply probBind_norm
+      · rw [<- Summable.hasSum_iff ENNReal.summable]
+        cases p
+        trivial
+      · intro a
+        rw [<- Summable.hasSum_iff ENNReal.summable]
+        cases q a
+        trivial ⟩
+
+instance : Monad SPMF where
+  pure := SPMF_pure
+  bind := SPMF_bind
+
 end SLang
 
 namespace PMF
 
 @[extern "my_run"]
-opaque run (c : PMF T) : IO T
+opaque run (c : SLang.SPMF T) : IO T
 
 end PMF
